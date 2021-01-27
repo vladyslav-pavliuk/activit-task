@@ -1,8 +1,0 @@
-;$Id$
-
-name = ActivIT zadanie 2
-description = Zadanie 2 pre ActivIT
-core = 7.x
-package = Drupal 7 Development
-
-;dependencies[] = autoload
