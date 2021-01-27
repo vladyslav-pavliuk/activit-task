@@ -1,0 +1,189 @@
+<?php
+
+//$Id$
+
+function weather_block_info()
+{
+  $blocks = array();
+  $blocks[1]['info'] = 'Weather API';
+  $blocks[2]['info'] = 'City list';
+  return $blocks;
+}
+
+function weather_block_view($delta = '')
+{
+
+  $url = 'http://api.weatherapi.com/v1/current.json';
+  $options = array(
+    'key' => 'fbafef63b4814291af0170050211001',
+    'q' => variable_get('city', 'New-York'),
+  );
+
+  $ch = curl_init();
+  curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
+  curl_setopt($ch, CURLOPT_URL, $url . '?' . http_build_query($options));
+
+  $response = curl_exec($ch);
+  $data = json_decode($response, true);
+  curl_close($ch);
+
+  if (!$data['location'] || !$data['current']) {
+    form_set_error('undefined', t($data['error']['message']));
+  }
+
+  $block = array();
+  switch ($delta) {
+    case 1:
+      $block['subject'] = 'Weather';
+      $block['content'] =
+        'City : ' . $data['location']['name'] . '<br>' . '<br>' .
+        'Country : ' . $data['location']['country'] . '<br>' . '<br>' .
+        'Temperature °C : ' . $data['current']['temp_c'] . '<br>' . '<br>' .
+        '<img src="' . $data['current']['condition']['icon'] . '">';
+      break;
+    case 2:
+      $block['subject'] = 'City list';
+      $block['content'] = '';
+      $query = db_select('cities_weather', 'c')
+        ->fields('c')
+        ->range(0, 3)
+        ->execute()
+        ->fetchAll();
+      foreach ($query as $item) {
+        unset($options['q']);
+        $options['q'] = $item->city;
+        $ch = curl_init();
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
+        curl_setopt($ch, CURLOPT_URL, $url . '?' . http_build_query($options));
+
+        $response = curl_exec($ch);
+        $datadb = json_decode($response, true);
+        curl_close($ch);
+        $block['content'] .=
+          'City : ' . $datadb['location']['name'] . '<br>' . '<br>' .
+          'Country : ' . $datadb['location']['country'] . '<br>' . '<br>' .
+          'Temperature °C : ' . $datadb['current']['temp_c'] . '<br>' . '<br>' .
+          '<img src="' . $datadb['current']['condition']['icon'] . '">';
+      }
+      break;
+  }
+  return $block;
+}
+
+/**
+ * implements hook_menu()
+ */
+function weather_menu()
+{
+  $items = array();
+  $items['weather'] = array(
+    'title' => 'Weather by search',
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('weather_form'),
+    'access callback' => TRUE,
+  );
+  $items['new_location'] = array(
+    'title' => 'Add or Delete city',
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('_new_location_form'),
+    'access callback' => TRUE,
+  );
+
+  return $items;
+}
+
+/**
+ * Callback form
+ */
+function weather_form($form, &$form_state)
+{
+
+
+  $form['city'] = array(
+    '#type' => 'textfield',
+    '#title' => t('Insert city'),
+    '#required' => TRUE,
+  );
+
+
+  $form['submit'] = array(
+    '#type' => 'submit',
+    '#value' => t('Submit'),
+
+  );
+  return $form;
+}
+
+function _new_location_form($form, &$form_state)
+{
+  $form['addcity'] = array(
+    '#type' => 'textfield',
+    '#title' => t('Add city'),
+
+  );
+
+  $form['deletecity'] = array(
+    '#type' => 'textfield',
+    '#title' => t('Delete city'),
+
+  );
+
+
+  $form['submit'] = array(
+    '#type' => 'submit',
+    '#value' => t('Submit'),
+
+  );
+  return $form;
+}
+
+/**
+ * Callback submit
+ * Implements hook_form_submit
+ */
+function weather_form_submit($form, &$form_state)
+{
+  variable_set('city', $form_state['values']['city']);
+}
+
+function _new_location_form_submit($form, &$form_state)
+{
+  $query = db_select('cities_weather', 'c')
+    ->fields('c', array('city'))
+    ->condition('city', $form_state['values']['addcity'], '=')
+    ->execute()
+    ->fetchAssoc();
+
+  $delete = db_delete('cities_weather')
+    ->condition('city', $form_state['values']['deletecity'])
+    ->execute();
+
+  if (!$query) {
+    db_insert('cities_weather')
+      ->fields(array(
+        'city' => $form_state['values']['addcity'],
+      ))
+      ->execute();
+    drupal_set_message('Success');
+  } else {
+    form_set_error('exist', t('City already exist in db or text field is empty'));
+  }
+
+  if (!empty($form_state['values']['deletecity'])) {
+    return $delete;
+  }
+
+}
+
+function weather_form_validate($form, &$form_state)
+{
+  if (is_numeric($form_state['values']['city'])) {
+    form_set_error('city', t('City can not be a number'));
+  }
+}
+
+
+
+
+
+

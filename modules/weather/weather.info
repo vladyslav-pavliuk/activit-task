@@ -1,0 +1,10 @@
+;$Id$
+
+name = Aktivit zadanie
+description = Zadanie 1 pre Aktivit
+core = 7.x
+package = Drupal 7 Development
+
+files[] = weather.module
+
+;dependencies[] = autoload
